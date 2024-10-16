@@ -47,7 +47,7 @@ async fn main() {
         KuasarSandboxer::new(
             config.sandbox,
             config.hypervisor,
-            CloudHypervisorHooks::new(enable_tracing),
+            CloudHypervisorHooks::default(),
         );
 
     // Do recovery job

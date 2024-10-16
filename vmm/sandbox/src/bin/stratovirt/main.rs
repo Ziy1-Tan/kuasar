@@ -48,7 +48,7 @@ async fn main() {
     let mut sandboxer: KuasarSandboxer<StratoVirtVMFactory, StratoVirtHooks> = KuasarSandboxer::new(
         config.sandbox,
         config.hypervisor.clone(),
-        StratoVirtHooks::new(config.hypervisor, enable_tracing),
+        StratoVirtHooks::new(config.hypervisor),
     );
 
     // Do recovery job

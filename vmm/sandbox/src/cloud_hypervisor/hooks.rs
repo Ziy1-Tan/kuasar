@@ -15,21 +15,13 @@ limitations under the License.
 */
 
 use containerd_sandbox::error::Result;
-use vmm_common::tracer;
 
 use crate::{
     cloud_hypervisor::CloudHypervisorVM, sandbox::KuasarSandbox, utils::get_resources, vm::Hooks,
 };
 
-pub struct CloudHypervisorHooks {
-    enable_tracing: bool,
-}
-
-impl CloudHypervisorHooks {
-    pub fn new(enable_tracing: bool) -> Self {
-        Self { enable_tracing }
-    }
-}
+#[derive(Default)]
+pub struct CloudHypervisorHooks {}
 
 #[async_trait::async_trait]
 impl Hooks<CloudHypervisorVM> for CloudHypervisorHooks {
@@ -43,13 +35,6 @@ impl Hooks<CloudHypervisorVM> for CloudHypervisorHooks {
         sandbox.data.task_address = format!("ttrpc+{}", sandbox.vm.agent_socket);
         // sync clock
         sandbox.sync_clock().await;
-        Ok(())
-    }
-
-    async fn post_stop(&self, _sandbox: &mut KuasarSandbox<CloudHypervisorVM>) -> Result<()> {
-        if self.enable_tracing {
-            tracer::shutdown_tracing();
-        }
         Ok(())
     }
 }

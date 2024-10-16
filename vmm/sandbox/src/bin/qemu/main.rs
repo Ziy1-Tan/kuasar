@@ -62,7 +62,7 @@ async fn main() {
     let sandboxer: KuasarSandboxer<QemuVMFactory, QemuHooks> = KuasarSandboxer::new(
         config.sandbox,
         config.hypervisor.clone(),
-        QemuHooks::new(config.hypervisor, enable_tracing),
+        QemuHooks::new(config.hypervisor),
     );
 
     // Run the sandboxer
