@@ -19,6 +19,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use containerd_sandbox::error::Result;
 use futures_util::StreamExt;
+use log::error;
 use qapi::{
     futures::{QapiService, QmpStreamTokio},
     qmp::{device_del, Event, QmpCommand},
@@ -31,7 +32,6 @@ use tokio::{
         Mutex,
     },
 };
-use log::error;
 
 pub struct QmpClient {
     qmp: QapiService<QmpStreamTokio<WriteHalf<UnixStream>>>,

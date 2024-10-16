@@ -27,6 +27,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use containerd_sandbox::error::{Error, Result};
 use futures_util::TryFutureExt;
+use log::{debug, error, trace, warn};
 use nix::{fcntl::OFlag, libc::kill, sys::stat::Mode};
 use qapi::qmp::quit;
 use qmp::CpuInfo;
@@ -38,7 +39,6 @@ use tokio::{
     task::spawn_blocking,
     time::sleep,
 };
-use log::{debug, error, trace, warn};
 use unshare::Fd;
 
 use self::devices::{pcie_rootbus::PcieRootBus, rootport::RootPort, PCIE_ROOTBUS_CAPACITY};

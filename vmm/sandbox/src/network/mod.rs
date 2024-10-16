@@ -23,6 +23,7 @@ use std::{
 use anyhow::anyhow;
 use containerd_sandbox::error::Result;
 use futures_util::TryStreamExt;
+use log::{debug, error, info, warn};
 use nix::{
     fcntl::OFlag,
     sched::{setns, CloneFlags},
@@ -31,7 +32,6 @@ use nix::{
 use rtnetlink::{new_connection, Handle, IpVersion};
 use serde_derive::{Deserialize, Serialize};
 use tokio::task::spawn_blocking;
-use log::{debug, error, info, warn};
 
 pub use crate::network::{address::IpNet, link::NetworkInterface, route::Route};
 use crate::{network::link::LinkType, sandbox::KuasarSandbox, utils::safe_open_file, vm::VM};
