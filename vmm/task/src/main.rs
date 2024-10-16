@@ -180,7 +180,7 @@ fn init_logger(log_level: &str, enable_tracing: bool) -> anyhow::Result<()> {
 
     let mut layers = vec![tracing_subscriber::fmt::layer().boxed()];
     if enable_tracing {
-        let tracer = init_otlp_tracer("kuasar-vmm-task-otlp-service")?;
+        let tracer = init_otlp_tracer("kuasar-vmm-task-service")?;
         layers.push(tracing_opentelemetry::layer().with_tracer(tracer).boxed());
     }
 

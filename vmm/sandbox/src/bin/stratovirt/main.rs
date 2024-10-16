@@ -41,7 +41,7 @@ async fn main() {
     tracer::setup_tracing(
         &config.sandbox.log_level(),
         enable_tracing,
-        "kuasar-vmm-sandboxer-stratovirt-otlp-service",
+        "kuasar-vmm-sandboxer-stratovirt-service",
     )
     .unwrap();
 

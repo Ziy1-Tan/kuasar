@@ -39,7 +39,7 @@ async fn main() {
     tracer::setup_tracing(
         &args.log_level.unwrap_or(config.sandbox.log_level()),
         enable_tracing,
-        "kuasar-vmm-sandboxer-clh-otlp-service",
+        "kuasar-vmm-sandboxer-clh-service",
     )
     .unwrap();
 
