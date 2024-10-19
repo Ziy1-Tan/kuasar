@@ -36,6 +36,7 @@ use nix::{
     sys::wait::{self, WaitPidFlag, WaitStatus},
     unistd::Pid,
 };
+use opentelemetry::trace::noop::NoopTracer;
 use signal_hook_tokio::Signals;
 use streaming::STREAMING_SERVICE;
 use tokio::sync::mpsc::channel;
@@ -145,6 +146,7 @@ lazy_static! {
 
 async fn initialize(config: &TaskConfig) -> anyhow::Result<()> {
     init_logger(&config.log_level, config.enable_tracing)?;
+    tracer::set_enabled(config.enable_tracing);
 
     info!("Task server start with config: {:?}", config);
 
@@ -176,12 +178,18 @@ fn init_logger(log_level: &str, enable_tracing: bool) -> anyhow::Result<()> {
         .add_directive(format!("containerd_shim={}", log_level).parse()?)
         .add_directive(format!("vmm_task={}", log_level).parse()?);
 
-    tracing_log::LogTracer::init()?;
-
     let mut layers = vec![tracing_subscriber::fmt::layer().boxed()];
+
     if enable_tracing {
-        let tracer = init_otlp_tracer("kuasar-vmm-task-service")?;
+        let tracer = init_otlp_tracer("kuasar-vmm-task-service")
+            .map_err(|e| anyhow!("failed to init otlp tracer: {}", e))?;
         layers.push(tracing_opentelemetry::layer().with_tracer(tracer).boxed());
+    } else {
+        layers.push(
+            tracing_opentelemetry::layer()
+                .with_tracer(NoopTracer::new())
+                .boxed(),
+        );
     }
 
     let subscriber = Registry::default().with(env_filter).with(layers);
@@ -223,7 +231,13 @@ async fn main() {
         exit(-1);
     }
 
-    let signals = match Signals::new([libc::SIGTERM, libc::SIGINT, libc::SIGPIPE, libc::SIGCHLD]) {
+    let signals = match Signals::new([
+        libc::SIGTERM,
+        libc::SIGINT,
+        libc::SIGPIPE,
+        libc::SIGCHLD,
+        libc::SIGUSR1,
+    ]) {
         Ok(s) => s,
         Err(e) => {
             error!("new signal failed: {:?}", e);
@@ -232,11 +246,7 @@ async fn main() {
     };
 
     info!("Task server successfully started, waiting for exit signal...");
-    handle_signals(signals).await;
-
-    if config.enable_tracing {
-        tracer::shutdown_tracing();
-    }
+    handle_signals(signals, &config.log_level).await;
 }
 
 // Do some initialization before everything starts.
@@ -250,11 +260,12 @@ async fn early_init_call() -> Result<()> {
     Ok(())
 }
 
-async fn handle_signals(signals: Signals) {
+async fn handle_signals(signals: Signals, log_level: &str) {
     let mut signals = signals.fuse();
     while let Some(sig) = signals.next().await {
         match sig {
             libc::SIGTERM | libc::SIGINT => {
+                tracer::shutdown_tracing();
                 debug!("received {}", sig);
             }
             libc::SIGCHLD => loop {
@@ -321,6 +332,10 @@ async fn handle_signals(signals: Signals) {
                     } // stick until exit
                 }
             },
+            libc::SIGUSR1 => {
+                tracer::set_enabled(!tracer::enabled());
+                let _ = init_logger(log_level, tracer::enabled());
+            }
             _ => {
                 if let Ok(sig) = nix::sys::signal::Signal::try_from(sig) {
                     debug!("received {}", sig);

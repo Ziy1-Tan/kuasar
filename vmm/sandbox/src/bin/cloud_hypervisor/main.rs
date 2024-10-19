@@ -36,12 +36,10 @@ async fn main() {
 
     // Update args log level if it not presents args but in config.
     let enable_tracing = config.sandbox.enable_tracing;
-    tracer::setup_tracing(
-        &args.log_level.unwrap_or(config.sandbox.log_level()),
-        enable_tracing,
-        "kuasar-vmm-sandboxer-clh-service",
-    )
-    .unwrap();
+    let log_level = args.log_level.unwrap_or(config.sandbox.log_level());
+    let service_name = "kuasar-vmm-sandboxer-clh-service";
+    tracer::setup_tracing(&log_level, enable_tracing, service_name).unwrap();
+    tracer::set_enabled(enable_tracing);
 
     let mut sandboxer: KuasarSandboxer<CloudHypervisorVMFactory, CloudHypervisorHooks> =
         KuasarSandboxer::new(
@@ -49,6 +47,10 @@ async fn main() {
             config.hypervisor,
             CloudHypervisorHooks::default(),
         );
+
+    tokio::spawn(async move {
+        tracer::handle_signals(&log_level, service_name).await;
+    });
 
     // Do recovery job
     sandboxer.recover(&args.dir).await;

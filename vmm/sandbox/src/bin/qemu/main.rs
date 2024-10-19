@@ -52,18 +52,20 @@ async fn main() {
     };
 
     let enable_tracing = config.sandbox.enable_tracing;
-    tracer::setup_tracing(
-        &config.sandbox.log_level(),
-        enable_tracing,
-        "kuasar-vmm-sandboxer-qemu-service",
-    )
-    .unwrap();
+    let log_level = config.sandbox.log_level();
+    let service_name = "kuasar-vmm-sandboxer-qemu-service";
+    tracer::setup_tracing(&log_level, enable_tracing, service_name).unwrap();
+    tracer::set_enabled(enable_tracing);
 
     let sandboxer: KuasarSandboxer<QemuVMFactory, QemuHooks> = KuasarSandboxer::new(
         config.sandbox,
         config.hypervisor.clone(),
         QemuHooks::new(config.hypervisor),
     );
+
+    tokio::spawn(async move {
+        tracer::handle_signals(&log_level, service_name).await;
+    });
 
     // Run the sandboxer
     containerd_sandbox::run(

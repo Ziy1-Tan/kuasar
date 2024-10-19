@@ -38,18 +38,20 @@ async fn main() {
 
     // Update args log level if it not presents args but in config.
     let enable_tracing = config.sandbox.enable_tracing;
-    tracer::setup_tracing(
-        &config.sandbox.log_level(),
-        enable_tracing,
-        "kuasar-vmm-sandboxer-stratovirt-service",
-    )
-    .unwrap();
+    let log_level = config.sandbox.log_level();
+    let service_name = "kuasar-vmm-sandboxer-stratovirt-service";
+    tracer::setup_tracing(&log_level, enable_tracing, service_name).unwrap();
+    tracer::set_enabled(enable_tracing);
 
     let mut sandboxer: KuasarSandboxer<StratoVirtVMFactory, StratoVirtHooks> = KuasarSandboxer::new(
         config.sandbox,
         config.hypervisor.clone(),
         StratoVirtHooks::new(config.hypervisor),
     );
+
+    tokio::spawn(async move {
+        tracer::handle_signals(&log_level, service_name).await;
+    });
 
     // Do recovery job
     sandboxer.recover(&args.dir).await;
