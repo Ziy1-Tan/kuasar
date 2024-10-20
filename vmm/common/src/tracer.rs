@@ -104,10 +104,9 @@ pub async fn handle_signals(log_level: &str, otlp_service_name: &str) {
                 let _ = setup_tracing(log_level, enabled(), otlp_service_name);
             }
             SIGINT | SIGTERM => {
-                // 处理退出信号，执行清理操作并退出
-                info!("Received exit signal, stopping tracing and exiting...");
+                info!("Received signal {}, stopping tracing and exiting...", sig);
                 shutdown_tracing();
-                std::process::exit(0); // 优雅退出
+                std::process::exit(0);
             }
             _ => {
                 if let Ok(sig) = nix::sys::signal::Signal::try_from(sig) {
