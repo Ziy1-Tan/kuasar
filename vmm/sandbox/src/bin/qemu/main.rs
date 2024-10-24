@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 use clap::Parser;
-use vmm_common::tracer;
+use vmm_common::{signal, tracer};
 use vmm_sandboxer::{
     args,
     config::Config,
@@ -51,11 +51,10 @@ async fn main() {
         Config::load_config(&args.config).await.unwrap()
     };
 
-    let enable_tracing = config.sandbox.enable_tracing;
     let log_level = config.sandbox.log_level();
     let service_name = "kuasar-vmm-sandboxer-qemu-service";
-    tracer::setup_tracing(&log_level, enable_tracing, service_name).unwrap();
-    tracer::set_enabled(enable_tracing);
+    tracer::set_enabled(config.sandbox.enable_tracing);
+    tracer::setup_tracing(&log_level, service_name).unwrap();
 
     let sandboxer: KuasarSandboxer<QemuVMFactory, QemuHooks> = KuasarSandboxer::new(
         config.sandbox,
@@ -64,7 +63,7 @@ async fn main() {
     );
 
     tokio::spawn(async move {
-        tracer::handle_signals(&log_level, service_name).await;
+        signal::handle_signals(&log_level, service_name).await;
     });
 
     // Run the sandboxer

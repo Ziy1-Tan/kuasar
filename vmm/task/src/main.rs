@@ -36,11 +36,12 @@ use nix::{
     sys::wait::{self, WaitPidFlag, WaitStatus},
     unistd::Pid,
 };
-use opentelemetry::trace::noop::NoopTracer;
 use signal_hook_tokio::Signals;
 use streaming::STREAMING_SERVICE;
 use tokio::sync::mpsc::channel;
-use tracing_subscriber::{self, layer::SubscriberExt, EnvFilter, Layer, Registry};
+use tracing_subscriber::{
+    self, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer, Registry,
+};
 use vmm_common::{
     api::{sandbox_ttrpc::create_sandbox_service, streaming_ttrpc::create_streaming},
     mount::mount,
@@ -144,9 +145,12 @@ lazy_static! {
     ]);
 }
 
-async fn initialize(config: &TaskConfig) -> anyhow::Result<()> {
-    init_logger(&config.log_level, config.enable_tracing)?;
+async fn initialize() -> anyhow::Result<TaskConfig> {
+    early_init_call().await?;
+
+    let config = TaskConfig::new().await?;
     tracer::set_enabled(config.enable_tracing);
+    init_logger(&config.log_level)?;
 
     info!("Task server start with config: {:?}", config);
 
@@ -170,54 +174,36 @@ async fn initialize(config: &TaskConfig) -> anyhow::Result<()> {
 
     late_init_call().await?;
 
-    Ok(())
+    Ok(config)
 }
 
-fn init_logger(log_level: &str, enable_tracing: bool) -> anyhow::Result<()> {
+fn init_logger(log_level: &str) -> anyhow::Result<()> {
     let env_filter = EnvFilter::from_default_env()
         .add_directive(format!("containerd_shim={}", log_level).parse()?)
         .add_directive(format!("vmm_task={}", log_level).parse()?);
 
     let mut layers = vec![tracing_subscriber::fmt::layer().boxed()];
 
-    if enable_tracing {
+    if tracer::enabled() {
         let tracer = init_otlp_tracer("kuasar-vmm-task-service")
             .map_err(|e| anyhow!("failed to init otlp tracer: {}", e))?;
         layers.push(tracing_opentelemetry::layer().with_tracer(tracer).boxed());
-    } else {
-        layers.push(
-            tracing_opentelemetry::layer()
-                .with_tracer(NoopTracer::new())
-                .boxed(),
-        );
     }
 
-    let subscriber = Registry::default().with(env_filter).with(layers);
-    tracing::subscriber::set_global_default(subscriber)
-        .map_err(|e| anyhow!("failed to set global default subscriber: {}", e))?;
+    Registry::default().with(env_filter).with(layers).init();
 
     Ok(())
 }
 
 #[tokio::main]
 async fn main() {
-    if let Err(e) = early_init_call().await {
-        error!("failed to do early init call: {:?}", e);
-        exit(-1);
-    }
-
-    let config = match TaskConfig::new().await {
+    let config = match initialize().await {
         Ok(c) => c,
         Err(e) => {
-            error!("failed to get task config: {:?}", e);
+            error!("failed to do init call:: {:?}", e);
             exit(-1);
         }
     };
-
-    if let Err(e) = initialize(&config).await {
-        error!("failed to do init call: {:?}", e);
-        exit(-1);
-    }
     // Keep server alive in main function
     let mut server = match create_ttrpc_server().await {
         Ok(s) => s,
@@ -265,6 +251,7 @@ async fn handle_signals(signals: Signals, log_level: &str) {
     while let Some(sig) = signals.next().await {
         match sig {
             libc::SIGTERM | libc::SIGINT => {
+                tracer::set_enabled(false);
                 tracer::shutdown_tracing();
                 debug!("received {}", sig);
             }
@@ -334,7 +321,7 @@ async fn handle_signals(signals: Signals, log_level: &str) {
             },
             libc::SIGUSR1 => {
                 tracer::set_enabled(!tracer::enabled());
-                let _ = init_logger(log_level, tracer::enabled());
+                let _ = init_logger(log_level);
             }
             _ => {
                 if let Ok(sig) = nix::sys::signal::Signal::try_from(sig) {

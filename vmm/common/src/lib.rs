@@ -18,6 +18,7 @@ pub use containerd_sandbox::data::Io;
 
 pub mod api;
 pub mod mount;
+pub mod signal;
 pub mod storage;
 pub mod tracer;
 
