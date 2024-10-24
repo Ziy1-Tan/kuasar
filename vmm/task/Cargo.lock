@@ -2549,7 +2549,6 @@ dependencies = [
  "tokio",
  "tokio-vsock",
  "tracing",
- "tracing-log 0.2.0",
  "tracing-opentelemetry",
  "tracing-subscriber",
  "ttrpc",
